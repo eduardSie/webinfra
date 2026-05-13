@@ -41,7 +41,7 @@ jobs:
           DATABASE_URL: "sqlite:///:memory:"
           SECRET_KEY: "test_secret_key_for_ci_only"
         run: |
-          pytest tests/test_unit.py -v --tb=short --junitxml=test-results.xml
+          python -m pytest tests/test_unit.py -v --tb=short --junitxml=test-results.xml
 
       - name: Upload test results
         if: always()
