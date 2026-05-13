@@ -1,0 +1,6 @@
+.*
+istatp2.pem
+*instance.py
+*.pyc
+!.gitignore
+!.github

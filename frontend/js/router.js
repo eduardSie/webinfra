@@ -18,7 +18,6 @@ export const router = {
         const [path, queryString] = hash.split('?');
         const params = Object.fromEntries(new URLSearchParams(queryString || ''));
 
-        // найти маршрут — поддержка параметров вида /services/:id
         let matched = null;
         let pathParams = {};
         for (const [pattern, route] of routes) {
@@ -36,11 +35,10 @@ export const router = {
             return;
         }
         if (matched.admin && !auth.isAdmin()) {
-            notFoundHandler?.('Недостаточно прав');
+            notFoundHandler?.('Not enough rights');
             return;
         }
 
-        // public-маршруты (напр. /login) — не требуют авторизации
         if (path !== '/login' && !auth.isLoggedIn()) {
             this.navigate('/login');
             return;

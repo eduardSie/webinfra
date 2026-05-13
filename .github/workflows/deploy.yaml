@@ -1,0 +1,184 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/service-catalog-api
+
+jobs:
+
+  # JOB 1: Unit Tests
+  test:
+    name: "Unit Tests"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        env:
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "test_secret_key_for_ci_only"
+        run: |
+          pytest tests/test_unit.py -v --tb=short --junitxml=test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results.xml
+
+  # JOB 2: Build & Push image to GHCR
+  # Runs only on push to main/master, not on PRs
+  build:
+    name: "Build & Push Image"
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      short_sha: ${{ steps.vars.outputs.short_sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set short SHA
+        id: vars
+        run: echo "short_sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # JOB 3: Deploy to AWS via SSH
+  deploy:
+    name: "Deploy to AWS"
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+
+    environment:
+      name: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy compose + nginx config to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_PORT }}
+          source: "docker-compose.yml,nginx/nginx.conf"
+          target: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.AWS_HOST }}
+          username: ${{ secrets.AWS_USER }}
+          key: ${{ secrets.AWS_SSH_KEY }}
+          port: ${{ secrets.AWS_PORT }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            IMAGE="ghcr.io/${{ env.IMAGE_NAME }}"
+            TAG="sha-${{ needs.build.outputs.short_sha }}"
+            DEPLOY_DIR="${{ secrets.DEPLOY_PATH }}"
+
+            echo "=== Deploy: $IMAGE:$TAG ==="
+            cd "$DEPLOY_DIR"
+
+            # Update IMAGE_TAG in .env
+            sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${TAG}|" .env
+            sed -i "s|^DOCKER_IMAGE=.*|DOCKER_IMAGE=${IMAGE}|" .env
+
+            # Pull new image
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.AWS_USER }}" --password-stdin
+            docker pull "${IMAGE}:${TAG}"
+
+            # Restart only api container (db and nginx untouched)
+            docker compose up -d --no-deps --remove-orphans api
+
+            # Wait for health check (up to 60s)
+            HEALTHY=false
+            for i in $(seq 1 12); do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' sc-api 2>/dev/null || echo "missing")
+              echo "  [$i/12] health = $STATUS"
+              if [ "$STATUS" = "healthy" ]; then
+                HEALTHY=true
+                break
+              fi
+              sleep 5
+            done
+
+            # Rollback on failure
+            if [ "$HEALTHY" != "true" ]; then
+              echo "FAILED — rolling back"
+              PREV=$(docker images "${IMAGE}" --format "{{.Tag}}" | grep "^sha-" | sed -n '2p')
+              if [ -n "$PREV" ]; then
+                sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${PREV}|" .env
+                docker compose up -d --no-deps api
+                echo "Rolled back to $PREV"
+              fi
+              exit 1
+            fi
+
+            echo "Healthy! Cleaning old images..."
+            docker images "${IMAGE}" --format "{{.ID}}" | tail -n +4 | xargs -r docker rmi || true
+            echo "=== Deploy complete ==="

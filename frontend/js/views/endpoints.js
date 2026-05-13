@@ -15,15 +15,15 @@ export async function renderEndpoints() {
         <div class="page-header">
             <div>
                 <div class="page-title">Endpoints</div>
-                <div class="page-subtitle">Домени сервісів · ${endpoints.length}</div>
+                <div class="page-subtitle">Service Domains · ${endpoints.length}</div>
             </div>
-            ${auth.isAdmin() ? `<button class="btn" id="create-btn">+ Налаштувати endpoint</button>` : ''}
+            ${auth.isAdmin() ? `<button class="btn" id="create-btn">+ Create Endpoint</button>` : ''}
         </div>
         <div class="card">
-            ${endpoints.length === 0 ? emptyState('Endpoints не задані', '🌐') : `
+            ${endpoints.length === 0 ? emptyState('No endpoints configured', '🌐') : `
                 <table>
                     <thead><tr>
-                        <th>Домен</th><th>Порт</th><th>Сервіс</th><th>Створено</th>
+                        <th>Domain</th><th>Port</th><th>Service</th><th>Created</th>
                         ${auth.isAdmin() ? '<th></th>' : ''}
                     </tr></thead>
                     <tbody>
@@ -36,7 +36,7 @@ export async function renderEndpoints() {
                                     : `<span class="text-dim">#${e.service_id}</span>`}</td>
                                 <td class="text-dim">${formatDate(e.created_at)}</td>
                                 ${auth.isAdmin() ? `<td>
-                                    <button class="btn btn-sm btn-danger" data-delete="${e.id}">Видалити</button>
+                                    <button class="btn btn-sm btn-danger" data-delete="${e.id}">Delete</button>
                                 </td>` : ''}
                             </tr>
                         `).join('')}
@@ -48,21 +48,21 @@ export async function renderEndpoints() {
 
     if (auth.isAdmin()) {
         document.getElementById('create-btn').onclick = () => {
-            if (services.length === 0) { toast.warning('Спочатку створіть сервіс'); return; }
+            if (services.length === 0) { toast.warning('Create a service first'); return; }
             modal({
-                title: 'Новий endpoint',
+                title: 'New Endpoint',
                 body: `
-                    <div class="form-group"><label>Домен *</label>
+                    <div class="form-group"><label>Domain *</label>
                         <input class="form-control" id="f-dom" placeholder="api.company.com" /></div>
-                    <div class="form-group"><label>Порт</label>
+                    <div class="form-group"><label>Port</label>
                         <input type="number" class="form-control" id="f-port" value="443" min="1" max="65535" /></div>
-                    <div class="form-group"><label>Сервіс</label>
+                    <div class="form-group"><label>Service</label>
                         <select class="form-control" id="f-svc">
                             ${services.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
                         </select>
                     </div>
                 `,
-                confirmText: 'Створити',
+                confirmText: 'Create',
                 onConfirm: async () => {
                     try {
                         await api.endpoints.create({
@@ -70,7 +70,7 @@ export async function renderEndpoints() {
                             port:       +document.getElementById('f-port').value,
                             service_id: +document.getElementById('f-svc').value,
                         });
-                        toast.success('Endpoint створено');
+                        toast.success('Endpoint created');
                         renderEndpoints();
                         return true;
                     } catch (e) { toast.error(e.message); return false; }
@@ -80,14 +80,14 @@ export async function renderEndpoints() {
 
         container.querySelectorAll('[data-delete]').forEach(b => b.onclick = async () => {
             if (!await confirm({
-                title: 'Видалення endpoint',
-                message: 'Endpoint і прив\'язаний SSL-сертифікат будуть видалені. Продовжити?',
-                confirmText: 'Видалити',
+                title: 'Delete Endpoint',
+                message: 'Are you sure you want to delete this endpoint?',
+                confirmText: 'Delete',
                 danger: true,
             })) return;
             try {
                 await api.endpoints.delete(b.dataset.delete);
-                toast.success('Endpoint видалено');
+                toast.success('Endpoint deleted');
                 renderEndpoints();
             } catch (e) { toast.error(e.message); }
         });

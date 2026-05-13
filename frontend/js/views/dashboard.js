@@ -20,39 +20,39 @@ export async function renderDashboard() {
     container.innerHTML = `
         <div class="page-header">
             <div>
-                <div class="page-title">Добро пожаловать, ${escapeHtml(auth.getUser().username)}</div>
-                <div class="page-subtitle">Обзор ваших сервисов и ресурсов</div>
+                <div class="page-title">Welcome, ${escapeHtml(auth.getUser().username)}</div>
+                <div class="page-subtitle">Overview of your services and resources</div>
             </div>
         </div>
 
         <div class="grid grid-4">
             <div class="card stat-card">
-                <div class="stat-label">Мои сервисы</div>
+                <div class="stat-label">My Services</div>
                 <div class="stat-value">${services.length}</div>
-                <div class="stat-hint">${activeServices} активных</div>
+                <div class="stat-hint">${activeServices} active</div>
             </div>
             <div class="card stat-card">
-                <div class="stat-label">Ресурсы</div>
+                <div class="stat-label">Resources</div>
                 <div class="stat-value">${resources.length}</div>
-                <div class="stat-hint">${attachedRes} подключено</div>
+                <div class="stat-hint">${attachedRes} attached</div>
             </div>
             <div class="card stat-card">
-                <div class="stat-label">SSL истекает скоро</div>
+                <div class="stat-label">SSL Expiring Soon</div>
                 <div class="stat-value" style="color: ${expiringSoon ? 'var(--warning)' : 'var(--success)'}">${expiringSoon}</div>
-                <div class="stat-hint">в ближайшие 30 дней</div>
+                <div class="stat-hint">in the next 30 days</div>
             </div>
             <div class="card stat-card">
-                <div class="stat-label">Просроченные SSL</div>
+                <div class="stat-label">Expired SSL</div>
                 <div class="stat-value" style="color: ${expired ? 'var(--danger)' : 'var(--success)'}">${expired}</div>
-                <div class="stat-hint">требуют замены</div>
+                <div class="stat-hint">require replacement</div>
             </div>
         </div>
 
         <div class="card mt-16">
-            <h3 class="mb-16">Мои сервисы</h3>
-            ${services.length === 0 ? '<p class="text-dim">У вас пока нет сервисов.</p>' : `
+            <h3 class="mb-16">My Services</h3>
+            ${services.length === 0 ? '<p class="text-dim">You don\'t have any services yet.</p>' : `
                 <table>
-                    <thead><tr><th>Название</th><th>Статус</th><th>Создан</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Status</th><th>Created</th></tr></thead>
                     <tbody>
                         ${services.map(s => `
                             <tr style="cursor:pointer" onclick="location.hash='#/services/${s.id}'">

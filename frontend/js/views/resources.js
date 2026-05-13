@@ -14,17 +14,17 @@ export async function renderResources() {
     container.innerHTML = `
         <div class="page-header">
             <div>
-                <div class="page-title">Ресурси</div>
-                <div class="page-subtitle">${resources.length} серверів</div>
+                <div class="page-title">Resources</div>
+                <div class="page-subtitle">${resources.length} servers</div>
             </div>
-            ${auth.isAdmin() ? `<button class="btn" id="create-btn">+ Додати сервер</button>` : ''}
+            ${auth.isAdmin() ? `<button class="btn" id="create-btn">+ Add Server</button>` : ''}
         </div>
         <div class="card">
-            ${resources.length === 0 ? emptyState('Немає ресурсів', '🖥') : `
+            ${resources.length === 0 ? emptyState('No resources available', '🖥') : `
                 <table>
                     <thead><tr>
                         <th>Hostname</th><th>IP</th><th>CPU</th><th>RAM</th><th>Disk</th>
-                        <th>Сервіс</th><th>Статус</th>${auth.isAdmin() ? '<th></th>' : ''}
+                        <th>Service</th><th>Status</th>${auth.isAdmin() ? '<th></th>' : ''}
                     </tr></thead>
                     <tbody>
                         ${resources.map(r => `
@@ -36,15 +36,15 @@ export async function renderResources() {
                                 <td>${r.disk_gb} GB</td>
                                 <td>${r.service_name
                                     ? `<b>${escapeHtml(r.service_name)}</b> <span class="text-dim">#${r.service_id}</span>`
-                                    : '<span class="text-dim">вільний</span>'}</td>
+                                    : '<span class="text-dim">Free</span>'}</td>
                                 <td>${r.is_attached
                                     ? '<span class="badge badge-active">Attached</span>'
                                     : '<span class="badge badge-inactive">Free</span>'}</td>
                                 ${auth.isAdmin() ? `<td class="flex gap-8">
                                     ${r.is_attached
-                                        ? `<button class="btn btn-sm btn-ghost" data-detach="${r.id}">Відв'язати</button>`
-                                        : `<button class="btn btn-sm" data-allocate="${r.id}">Прив'язати</button>
-                                           <button class="btn btn-sm btn-danger" data-delete="${r.id}">Видалити</button>`}
+                                        ? `<button class="btn btn-sm btn-ghost" data-detach="${r.id}">Detach</button>`
+                                        : `<button class="btn btn-sm" data-allocate="${r.id}">Allocate</button>
+                                           <button class="btn btn-sm btn-danger" data-delete="${r.id}">Delete</button>`}
                                 </td>` : ''}
                             </tr>
                         `).join('')}
@@ -60,7 +60,7 @@ export async function renderResources() {
         container.querySelectorAll('[data-detach]').forEach(b => b.onclick = async () => {
             try {
                 await api.resources.detach(b.dataset.detach);
-                toast.success('Ресурс відв\'язано');
+                toast.success('Resource detached');
                 renderResources();
             } catch (e) { toast.error(e.message); }
         });
@@ -70,14 +70,14 @@ export async function renderResources() {
 
         container.querySelectorAll('[data-delete]').forEach(b => b.onclick = async () => {
             if (!await confirm({
-                title: 'Видалення ресурсу',
-                message: 'Сервер буде видалено назавжди. Продовжити?',
-                confirmText: 'Видалити',
+                title: 'Delete Resource',
+                message: 'The server will be deleted permanently. Continue?',
+                confirmText: 'Delete',
                 danger: true,
             })) return;
             try {
                 await api.resources.delete(b.dataset.delete);
-                toast.success('Ресурс видалено');
+                toast.success('Resource deleted');
                 renderResources();
             } catch (e) { toast.error(e.message); }
         });
@@ -86,7 +86,7 @@ export async function renderResources() {
 
 function openCreateModal() {
     modal({
-        title: 'Новий сервер',
+        title: 'New Server',
         body: `
             <div class="grid grid-2">
                 <div class="form-group"><label>Hostname *</label><input class="form-control" id="f-host" /></div>
@@ -96,7 +96,7 @@ function openCreateModal() {
                 <div class="form-group"><label>Disk (GB)</label><input type="number" class="form-control" id="f-disk" min="1" value="100" /></div>
             </div>
         `,
-        confirmText: 'Додати',
+        confirmText: 'Add Server',
         onConfirm: async () => {
             const payload = {
                 hostname:  document.getElementById('f-host').value.trim(),
@@ -105,10 +105,10 @@ function openCreateModal() {
                 ram_gb:    +document.getElementById('f-ram').value,
                 disk_gb:   +document.getElementById('f-disk').value,
             };
-            if (!payload.hostname || !payload.ip_address) { toast.error('Заповніть всі поля'); return false; }
+            if (!payload.hostname || !payload.ip_address) { toast.error('Fill in all fields'); return false; }
             try {
                 await api.resources.create(payload);
-                toast.success('Сервер додано');
+                toast.success('Server added');
                 renderResources();
                 return true;
             } catch (e) { toast.error(e.message); return false; }
@@ -117,22 +117,22 @@ function openCreateModal() {
 }
 
 function openAllocateModal(resourceId, services) {
-    if (services.length === 0) { toast.warning('Спочатку створіть сервіс'); return; }
+    if (services.length === 0) { toast.warning('Create a service first'); return; }
     modal({
-        title: 'Прив\'язати до сервісу',
+        title: 'Allocate to Service',
         body: `
             <div class="form-group">
-                <label>Сервіс</label>
+                <label>Service</label>
                 <select class="form-control" id="f-svc">
                     ${services.map(s => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
                 </select>
             </div>
         `,
-        confirmText: 'Прив\'язати',
+        confirmText: 'Allocate',
         onConfirm: async () => {
             try {
                 await api.resources.allocate(resourceId, +document.getElementById('f-svc').value);
-                toast.success('Ресурс прив\'язано');
+                toast.success('Resource allocated');
                 renderResources();
                 return true;
             } catch (e) { toast.error(e.message); return false; }

@@ -21,7 +21,7 @@ async function request(path, { method = 'GET', body, auth: needAuth = true, isFo
     try {
         response = await fetch(`${API_BASE}${path}`, config);
     } catch (e) {
-        toast.error('Мережева помилка. Сервер недоступний?');
+        toast.error('Network error. Server is unreachable');
         throw e;
     }
 
@@ -37,7 +37,7 @@ async function request(path, { method = 'GET', body, auth: needAuth = true, isFo
 
     if (!response.ok) {
         const detail = data?.detail;
-        let message = 'Помилка запиту';
+        let message = 'Request error';
         if (typeof detail === 'string') message = detail;
         else if (Array.isArray(detail)) {
             message = detail.map(e => `${e.loc?.slice(-1)}: ${e.msg}`).join('; ');

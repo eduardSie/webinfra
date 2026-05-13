@@ -25,7 +25,7 @@ export function modal({ title, body, onConfirm, confirmText = 'OK', danger = fal
             <div class="modal-title">${title}</div>
             <div class="modal-body"></div>
             <div class="modal-actions">
-                <button class="btn btn-ghost" data-act="cancel">Отмена</button>
+                <button class="btn btn-ghost" data-act="cancel">Cancel</button>
                 <button class="btn ${danger ? 'btn-danger' : ''}" data-act="confirm">${confirmText}</button>
             </div>
         </div>
@@ -46,7 +46,7 @@ export function modal({ title, body, onConfirm, confirmText = 'OK', danger = fal
     };
 }
 
-export function confirm({ title = 'Подтверждение', message, confirmText = 'Подтвердить', danger = false }) {
+export function confirm({ title = 'Confirmation', message, confirmText = 'Confirm', danger = false }) {
     return new Promise((resolve) => {
         modal({
             title,
@@ -55,7 +55,6 @@ export function confirm({ title = 'Подтверждение', message, confirm
             danger,
             onConfirm: () => { resolve(true); return true; },
         });
-        // при отмене Promise остаётся висящим — ок для наших задач (можно recolve(false) на close)
     });
 }
 
@@ -66,7 +65,7 @@ export function statusBadge(status) {
 export function formatDate(d) {
     if (!d) return '—';
     const dt = new Date(d);
-    return dt.toLocaleString('ru-RU', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return dt.toLocaleString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 export function loading(container) {

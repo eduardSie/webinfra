@@ -12,7 +12,6 @@ import { renderSSL } from './views/ssl.js';
 import { renderUsers } from './views/users.js';
 import { renderReport } from './views/report.js';
 
-// ----- Routes -----
 router.register('/login', renderLogin);
 router.register('/', renderDashboard);
 router.register('/services', renderServices);
@@ -27,13 +26,12 @@ router.notFound((msg) => {
     document.getElementById('view-container').innerHTML = `
         <div class="card" style="text-align:center;padding:60px">
             <h2>404</h2>
-            <p class="text-dim">${msg || 'Страница не найдена'}</p>
-            <a href="#/" class="btn mt-16">На главную</a>
+            <p class="text-dim">${msg || 'Page not found'}</p>
+            <a href="#/" class="btn mt-16">Back to Home</a>
         </div>
     `;
 });
 
-// ----- Render sidebar after login -----
 function renderSidebar() {
     const sidebar = document.getElementById('sidebar');
     const main = document.getElementById('main-content');
@@ -45,16 +43,16 @@ function renderSidebar() {
     const nav = document.getElementById('nav-menu');
     const items = [
         { section: 'User Zone' },
-        { path: '/', label: 'Дашборд', icon: '🏠' },
-        { path: '/services', label: 'Мои сервисы', icon: '📦' },
-        { path: '/resources', label: 'Ресурсы', icon: '🖥' },
+        { path: '/', label: 'Dashboard', icon: '🏠' },
+        { path: '/services', label: 'My Services', icon: '📦' },
+        { path: '/resources', label: 'Resources', icon: '🖥' },
         { path: '/endpoints', label: 'Endpoints', icon: '🌐' },
         { path: '/ssl', label: 'SSL', icon: '🔒' },
     ];
     if (user.is_admin) {
         items.push(
             { section: 'Admin Zone' },
-            { path: '/users', label: 'Пользователи', icon: '👥' },
+            { path: '/users', label: 'Users', icon: '👥' },
             { path: '/report', label: 'Global Report', icon: '📊' },
         );
     }
@@ -68,7 +66,7 @@ function renderSidebar() {
 
     document.getElementById('user-info').innerHTML = `
         <div class="user-name">${escapeHtml(user.username)}</div>
-        <div class="user-role">${user.is_admin ? 'Администратор' : 'Пользователь'}</div>
+        <div class="user-role">${user.is_admin ? 'Administrator' : 'User'}</div>
     `;
 
     updateActiveLink();
@@ -91,7 +89,6 @@ document.getElementById('logout-btn').addEventListener('click', () => {
 
 window.addEventListener('hashchange', () => { renderSidebar(); });
 
-// ---- Инициализация ----
 if (!auth.isLoggedIn() && !window.location.hash.startsWith('#/login')) {
     window.location.hash = '#/login';
 }

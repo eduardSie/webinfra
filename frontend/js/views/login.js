@@ -11,19 +11,19 @@ export function renderLogin() {
     container.innerHTML = `
         <div class="login-wrap">
             <div class="login-card">
-                <h1>Вход в Service Catalog</h1>
-                <p>Введите корпоративные учётные данные</p>
+                <h1>Login to Service Catalog</h1>
+                <p>Enter your corporate credentials</p>
                 <form id="login-form">
                     <div class="form-group">
-                        <label>Логин</label>
+                        <label>Username</label>
                         <input type="text" name="username" class="form-control" required autofocus />
                     </div>
                     <div class="form-group">
-                        <label>Пароль</label>
+                        <label>Password</label>
                         <input type="password" name="password" class="form-control" required />
                     </div>
                     <button type="submit" class="btn" style="width:100%;justify-content:center" id="login-submit">
-                        Войти
+                        Login
                     </button>
                 </form>
             </div>
@@ -37,22 +37,22 @@ export function renderLogin() {
         const username = form.username.value.trim();
         const password = form.password.value;
 
-        if (username.length < 3) { toast.error('Логин слишком короткий'); return; }
+        if (username.length < 3) { toast.error('Username is too short'); return; }
 
         btn.disabled = true;
-        btn.innerHTML = '<span class="loader"></span> Вход...';
+        btn.innerHTML = '<span class="loader"></span> Logging in...';
         try {
             const res = await api.login(username, password);
             auth.setToken(res.access_token);
             const me = await api.me();
             auth.setUser(me);
-            toast.success(`Добро пожаловать, ${me.username}!`);
+            toast.success(`Welcome, ${me.username}!`);
             router.navigate('/');
         } catch (e) {
-            toast.error(e.message || 'Не удалось войти');
+            toast.error(e.message || 'Failed to log in');
         } finally {
             btn.disabled = false;
-            btn.innerHTML = 'Войти';
+            btn.innerHTML = 'Login';
         }
     });
 }
