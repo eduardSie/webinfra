@@ -1,7 +1,7 @@
 import { auth } from './auth.js';
 import { toast } from './ui.js';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = '';
 
 async function request(path, { method = 'GET', body, auth: needAuth = true, isForm = false } = {}) {
     const headers = {};
