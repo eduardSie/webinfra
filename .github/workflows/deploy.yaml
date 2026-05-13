@@ -123,7 +123,7 @@ jobs:
           username: ${{ secrets.AWS_USER }}
           key: ${{ secrets.AWS_SSH_KEY }}
           port: ${{ secrets.AWS_PORT }}
-          source: "docker-compose.yml,nginx/nginx.conf"
+          source: "docker-compose.yml,nginx/nginx.conf,frontend"
           target: ${{ secrets.DEPLOY_PATH }}
 
       - name: Deploy via SSH
