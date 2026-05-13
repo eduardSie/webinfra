@@ -12,7 +12,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/service-catalog-api
+  IMAGE_NAME: eduardSie/service-catalog-api
 
 jobs:
 
