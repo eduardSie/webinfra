@@ -21,7 +21,7 @@ async function request(path, { method = 'GET', body, auth: needAuth = true, isFo
     try {
         response = await fetch(`${API_BASE}${path}`, config);
     } catch (e) {
-        toast.error('Сетевая ошибка. Сервер недоступен?');
+        toast.error('Мережева помилка. Сервер недоступний?');
         throw e;
     }
 
@@ -37,10 +37,9 @@ async function request(path, { method = 'GET', body, auth: needAuth = true, isFo
 
     if (!response.ok) {
         const detail = data?.detail;
-        let message = 'Ошибка запроса';
+        let message = 'Помилка запиту';
         if (typeof detail === 'string') message = detail;
         else if (Array.isArray(detail)) {
-            // Pydantic validation errors
             message = detail.map(e => `${e.loc?.slice(-1)}: ${e.msg}`).join('; ');
         }
         const err = new Error(message);
@@ -52,66 +51,52 @@ async function request(path, { method = 'GET', body, auth: needAuth = true, isFo
 }
 
 export const api = {
-    // Auth
     login(username, password) {
         const form = new URLSearchParams();
         form.append('username', username);
         form.append('password', password);
-        return request('/users/login', {
-            method: 'POST',
-            body: form,
-            auth: false,
-            isForm: true,
-        });
+        return request('/users/login', { method: 'POST', body: form, auth: false, isForm: true });
     },
     me: () => request('/users/me'),
 
-    // Users
     users: {
-        list: () => request('/users/'),
-        create: (data) => request('/users/', { method: 'POST', body: data }),
+        list:       ()   => request('/users/'),
+        create:     (d)  => request('/users/', { method: 'POST', body: d }),
         deactivate: (id) => request(`/users/${id}/deactivate`, { method: 'PATCH' }),
+        activate:   (id) => request(`/users/${id}/activate`,   { method: 'PATCH' }),
     },
 
-    // Services
     services: {
-        my: () => request('/services/my'),
-        get: (id) => request(`/services/${id}`),
-        create: (data) => request('/services/', { method: 'POST', body: data }),
-        update: (id, data) => request(`/services/${id}`, { method: 'PATCH', body: data }),
-        delete: (id) => request(`/services/${id}`, { method: 'DELETE' }),
-        listAccess: (id) => request(`/services/${id}/access`),
-        grantAccess: (id, userId) => request(`/services/${id}/access`, {
-            method: 'POST', body: { user_id: userId }
-        }),
-        revokeAccess: (id, userId) => request(`/services/${id}/access/${userId}`, {
-            method: 'DELETE'
-        }),
+        my:          ()          => request('/services/my'),
+        get:         (id)        => request(`/services/${id}`),
+        create:      (d)         => request('/services/', { method: 'POST', body: d }),
+        update:      (id, d)     => request(`/services/${id}`, { method: 'PATCH', body: d }),
+        delete:      (id)        => request(`/services/${id}`, { method: 'DELETE' }),
+        listAccess:  (id)        => request(`/services/${id}/access`),
+        grantAccess: (id, uid)   => request(`/services/${id}/access`, { method: 'POST', body: { user_id: uid } }),
+        revokeAccess:(id, uid)   => request(`/services/${id}/access/${uid}`, { method: 'DELETE' }),
     },
 
-    // Resources
     resources: {
-        status: () => request('/resources/status'),
-        create: (data) => request('/resources/', { method: 'POST', body: data }),
-        allocate: (id, serviceId) => request(`/resources/${id}/allocate`, {
-            method: 'POST', body: { service_id: serviceId }
-        }),
-        detach: (id) => request(`/resources/${id}/detach`, { method: 'POST' }),
+        status:   ()          => request('/resources/status'),
+        create:   (d)         => request('/resources/', { method: 'POST', body: d }),
+        allocate: (id, svcId) => request(`/resources/${id}/allocate`, { method: 'POST', body: { service_id: svcId } }),
+        detach:   (id)        => request(`/resources/${id}/detach`, { method: 'POST' }),
+        delete:   (id)        => request(`/resources/${id}`, { method: 'DELETE' }),
     },
 
-    // Endpoints
     endpoints: {
-        list: () => request('/endpoints/'),
-        create: (data) => request('/endpoints/', { method: 'POST', body: data }),
+        list:   ()  => request('/endpoints/'),
+        create: (d) => request('/endpoints/', { method: 'POST', body: d }),
+        delete: (id)=> request(`/endpoints/${id}`, { method: 'DELETE' }),
     },
 
-    // SSL
     ssl: {
-        attach: (data) => request('/ssl/', { method: 'POST', body: data }),
+        attach:      (d)         => request('/ssl/', { method: 'POST', body: d }),
+        revoke:      (id)        => request(`/ssl/${id}`, { method: 'DELETE' }),
         checkExpiry: (days = 30) => request(`/ssl/expiry-check?days=${days}`),
     },
 
-    // Reports
     reports: {
         global: () => request('/reports/global'),
     },

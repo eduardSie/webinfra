@@ -9,7 +9,6 @@ from app.models.endpoint import Endpoint
 from app.models.service import Service
 from app.models.ssl_certificate import SSLCertificate
 from app.schemas.ssl_certificate import SSLCertificateCreate, SSLCertificateOut
-from app.dependencies import get_current_user, require_admin
 from app.dependencies import get_current_user, require_admin, get_accessible_service_ids
 
 router = APIRouter(prefix="/ssl", tags=["SSL"])
@@ -17,9 +16,12 @@ router = APIRouter(prefix="/ssl", tags=["SSL"])
 
 def _to_out(cert: SSLCertificate) -> dict:
     now = datetime.now(timezone.utc)
-    valid_to = cert.valid_to if cert.valid_to.tzinfo else cert.valid_to.replace(tzinfo=timezone.utc)
+    valid_to = (
+        cert.valid_to
+        if cert.valid_to.tzinfo
+        else cert.valid_to.replace(tzinfo=timezone.utc)
+    )
     delta = (valid_to - now).days
-
     endpoint = cert.endpoint
     return {
         "id": cert.id,
@@ -35,18 +37,29 @@ def _to_out(cert: SSLCertificate) -> dict:
 
 
 @router.post("/", response_model=SSLCertificateOut, status_code=201)
-def attach_ssl(payload: SSLCertificateCreate,
-               db: Session = Depends(get_db),
-               admin: User = Depends(require_admin)):
-    """Admin Zone: Attach SSL Certificate"""
-    endpoint = db.query(Endpoint).get(payload.endpoint_id)
+def attach_ssl(
+    payload: SSLCertificateCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin Zone: Attach SSL Certificate."""
+    endpoint = (
+        db.query(Endpoint)
+        .options(joinedload(Endpoint.ssl_certificate), joinedload(Endpoint.service))
+        .filter(Endpoint.id == payload.endpoint_id)
+        .first()
+    )
     if not endpoint:
         raise HTTPException(404, "Endpoint not found")
     if endpoint.ssl_certificate:
         raise HTTPException(409, "Endpoint already has an SSL certificate")
 
     now = datetime.now(timezone.utc)
-    valid_to = payload.valid_to if payload.valid_to.tzinfo else payload.valid_to.replace(tzinfo=timezone.utc)
+    valid_to = (
+        payload.valid_to
+        if payload.valid_to.tzinfo
+        else payload.valid_to.replace(tzinfo=timezone.utc)
+    )
     if valid_to < now:
         raise HTTPException(400, "Certificate is already expired")
 
@@ -54,19 +67,37 @@ def attach_ssl(payload: SSLCertificateCreate,
     db.add(cert)
     db.commit()
     db.refresh(cert)
-    # подгружаем endpoint+service для сериализации
+    # підвантажуємо зв'язки для серіалізації
     db.refresh(cert)
     return _to_out(cert)
 
 
+@router.delete("/{cert_id}", status_code=204)
+def revoke_ssl(
+    cert_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Відкликати / видалити SSL-сертифікат."""
+    cert = db.query(SSLCertificate).get(cert_id)
+    if not cert:
+        raise HTTPException(404, "SSL certificate not found")
+    db.delete(cert)
+    db.commit()
+
+
 @router.get("/expiry-check", response_model=List[SSLCertificateOut])
-def check_ssl_expiry(days: int = 30,
-                     db: Session = Depends(get_db),
-                     user: User = Depends(get_current_user)):
+def check_ssl_expiry(
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """User Zone: Check SSL Expiry (extend: View Endpoints & SSL)."""
     q = (
         db.query(SSLCertificate)
         .options(joinedload(SSLCertificate.endpoint).joinedload(Endpoint.service))
-        .join(Endpoint).join(Service)
+        .join(Endpoint)
+        .join(Service)
     )
     if not user.is_admin:
         ids = get_accessible_service_ids(db, user)

@@ -8,7 +8,6 @@ from app.models.user import User
 from app.models.resource import Resource
 from app.models.service import Service
 from app.schemas.resource import ResourceCreate, ResourceOut, ResourceAllocate
-from app.dependencies import get_current_user, require_admin
 from app.dependencies import get_current_user, require_admin, get_accessible_service_ids
 
 router = APIRouter(prefix="/resources", tags=["Resources"])
@@ -35,8 +34,8 @@ def _validate_network_config(ip: str, db: Session, exclude_id: int | None = None
     except ValueError:
         raise HTTPException(400, "Invalid IP address")
 
-    if addr.is_loopback or addr.is_multicast or addr.is_reserved:
-        raise HTTPException(400, "IP in forbidden range")
+    if addr.is_loopback or addr.is_multicast or addr.is_reserved or addr.is_unspecified:
+        raise HTTPException(400, "IP in forbidden range (loopback / multicast / reserved / unspecified)")
 
     q = db.query(Resource).filter(Resource.ip_address == ip)
     if exclude_id:
@@ -46,8 +45,10 @@ def _validate_network_config(ip: str, db: Session, exclude_id: int | None = None
 
 
 @router.get("/status", response_model=List[ResourceOut])
-def view_resource_status(db: Session = Depends(get_db),
-                         user: User = Depends(get_current_user)):
+def view_resource_status(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     q = db.query(Resource).options(joinedload(Resource.service))
     if not user.is_admin:
         ids = get_accessible_service_ids(db, user)
@@ -58,9 +59,11 @@ def view_resource_status(db: Session = Depends(get_db),
 
 
 @router.post("/", response_model=ResourceOut, status_code=201)
-def create_resource(payload: ResourceCreate,
-                    db: Session = Depends(get_db),
-                    admin: User = Depends(require_admin)):
+def create_resource(
+    payload: ResourceCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
     _validate_network_config(payload.ip_address, db)
     res = Resource(**payload.model_dump())
     db.add(res)
@@ -70,10 +73,13 @@ def create_resource(payload: ResourceCreate,
 
 
 @router.post("/{resource_id}/allocate", response_model=ResourceOut)
-def allocate_resource(resource_id: int,
-                      payload: ResourceAllocate,
-                      db: Session = Depends(get_db),
-                      admin: User = Depends(require_admin)):
+def allocate_resource(
+    resource_id: int,
+    payload: ResourceAllocate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin Zone: Allocate Resources (Servers) — включає Validate Network Config."""
     res = db.query(Resource).get(resource_id)
     if not res:
         raise HTTPException(404, "Resource not found")
@@ -97,9 +103,12 @@ def allocate_resource(resource_id: int,
 
 
 @router.post("/{resource_id}/detach", response_model=ResourceOut)
-def detach_resource(resource_id: int,
-                    db: Session = Depends(get_db),
-                    admin: User = Depends(require_admin)):
+def detach_resource(
+    resource_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Admin Zone: Detach Resources."""
     res = db.query(Resource).get(resource_id)
     if not res:
         raise HTTPException(404, "Resource not found")
@@ -110,3 +119,19 @@ def detach_resource(resource_id: int,
     db.commit()
     db.refresh(res)
     return _serialize(res)
+
+
+@router.delete("/{resource_id}", status_code=204)
+def delete_resource(
+    resource_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Видалити ресурс (тільки якщо не прив'язаний до сервісу)."""
+    res = db.query(Resource).get(resource_id)
+    if not res:
+        raise HTTPException(404, "Resource not found")
+    if res.is_attached:
+        raise HTTPException(400, "Detach resource from service before deletion")
+    db.delete(res)
+    db.commit()

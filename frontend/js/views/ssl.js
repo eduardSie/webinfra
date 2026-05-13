@@ -1,6 +1,6 @@
 import { api } from '../api.js';
 import { auth } from '../auth.js';
-import { toast, loading, modal, escapeHtml, emptyState, formatDate } from '../ui.js';
+import { toast, loading, modal, confirm, escapeHtml, emptyState, formatDate } from '../ui.js';
 
 export async function renderSSL() {
     const container = document.getElementById('view-container');
@@ -8,30 +8,31 @@ export async function renderSSL() {
 
     const [endpoints, certs] = await Promise.all([
         api.endpoints.list(),
-        api.ssl.checkExpiry(365),   // забираем все с запасом для табличного вида
+        api.ssl.checkExpiry(365),   
     ]);
 
     container.innerHTML = `
         <div class="page-header">
             <div>
-                <div class="page-title">SSL сертификаты</div>
-                <div class="page-subtitle">Мониторинг истекающих ключей</div>
+                <div class="page-title">SSL сертифікати</div>
+                <div class="page-subtitle">Моніторинг термінів дії</div>
             </div>
-            ${auth.isAdmin() ? `<button class="btn" id="attach-btn">+ Привязать сертификат</button>` : ''}
+            ${auth.isAdmin() ? `<button class="btn" id="attach-btn">+ Прив'язати сертифікат</button>` : ''}
         </div>
         <div class="card">
-            ${certs.length === 0 ? emptyState('Сертификатов не найдено', '🔒') : `
+            ${certs.length === 0 ? emptyState('Сертифікатів не знайдено', '🔒') : `
                 <table>
                     <thead><tr>
-                        <th>Endpoint</th><th>Сервис</th><th>Издатель</th>
-                        <th>Действителен до</th><th>Осталось дней</th><th>Статус</th>
+                        <th>Endpoint</th><th>Сервіс</th><th>Видавець</th>
+                        <th>Дійсний до</th><th>Залишилось днів</th><th>Статус</th>
+                        ${auth.isAdmin() ? '<th></th>' : ''}
                     </tr></thead>
                     <tbody>
                         ${certs.map(c => {
                             let badge;
-                            if (c.is_expired) badge = '<span class="badge badge-deprecated">Просрочен</span>';
-                            else if (c.days_until_expiry <= 14) badge = '<span class="badge badge-maintenance">Скоро истечёт</span>';
-                            else badge = '<span class="badge badge-active">OK</span>';
+                            if (c.is_expired)               badge = '<span class="badge badge-deprecated">Прострочено</span>';
+                            else if (c.days_until_expiry <= 14) badge = '<span class="badge badge-maintenance">Скоро закінчиться</span>';
+                            else                            badge = '<span class="badge badge-active">OK</span>';
                             return `
                                 <tr>
                                     <td><b>${escapeHtml(c.endpoint_domain || '—')}</b></td>
@@ -40,50 +41,72 @@ export async function renderSSL() {
                                     <td>${formatDate(c.valid_to)}</td>
                                     <td><b>${c.days_until_expiry}</b></td>
                                     <td>${badge}</td>
+                                    ${auth.isAdmin() ? `<td>
+                                        <button class="btn btn-sm btn-danger" data-revoke="${c.id}">Відкликати</button>
+                                    </td>` : ''}
                                 </tr>`;
                         }).join('')}
                     </tbody>
                 </table>
             `}
-
         </div>
     `;
 
     if (auth.isAdmin()) {
         document.getElementById('attach-btn').onclick = () => {
-            if (endpoints.length === 0) { toast.warning('Нет endpoints'); return; }
+            if (endpoints.length === 0) { toast.warning('Немає endpoints'); return; }
+            const freeEndpoints = endpoints.filter(e => !certs.some(c => c.endpoint_id === e.id));
+            if (freeEndpoints.length === 0) { toast.warning('Всі endpoints вже мають сертифікат'); return; }
             modal({
-                title: 'Привязать SSL сертификат',
+                title: 'Прив\'язати SSL сертифікат',
                 body: `
                     <div class="form-group"><label>Endpoint</label>
                         <select class="form-control" id="f-ep">
-                            ${endpoints.map(e => `<option value="${e.id}">${escapeHtml(e.domain)}</option>`).join('')}
+                            ${freeEndpoints.map(e => `<option value="${e.id}">${escapeHtml(e.domain)}</option>`).join('')}
                         </select>
                     </div>
-                    <div class="form-group"><label>Издатель</label>
+                    <div class="form-group"><label>Видавець</label>
                         <input class="form-control" id="f-iss" placeholder="Let's Encrypt" /></div>
                     <div class="grid grid-2">
-                        <div class="form-group"><label>Действителен с</label>
+                        <div class="form-group"><label>Дійсний з</label>
                             <input type="datetime-local" class="form-control" id="f-from" /></div>
-                        <div class="form-group"><label>Действителен до</label>
+                        <div class="form-group"><label>Дійсний до</label>
                             <input type="datetime-local" class="form-control" id="f-to" /></div>
                     </div>
                 `,
-                confirmText: 'Привязать',
+                confirmText: 'Прив\'язати',
                 onConfirm: async () => {
+                    const issuer = document.getElementById('f-iss').value.trim();
+                    const fromVal = document.getElementById('f-from').value;
+                    const toVal   = document.getElementById('f-to').value;
+                    if (!issuer || !fromVal || !toVal) { toast.error('Заповніть всі поля'); return false; }
                     try {
                         await api.ssl.attach({
                             endpoint_id: +document.getElementById('f-ep').value,
-                            issuer: document.getElementById('f-iss').value.trim(),
-                            valid_from: new Date(document.getElementById('f-from').value).toISOString(),
-                            valid_to: new Date(document.getElementById('f-to').value).toISOString(),
+                            issuer,
+                            valid_from: new Date(fromVal).toISOString(),
+                            valid_to:   new Date(toVal).toISOString(),
                         });
-                        toast.success('Сертификат привязан');
+                        toast.success('Сертифікат прив\'язано');
                         renderSSL();
                         return true;
                     } catch (e) { toast.error(e.message); return false; }
                 },
             });
         };
+
+        container.querySelectorAll('[data-revoke]').forEach(b => b.onclick = async () => {
+            if (!await confirm({
+                title: 'Відкликати сертифікат?',
+                message: 'SSL-сертифікат буде видалено. Endpoint залишиться активним.',
+                confirmText: 'Відкликати',
+                danger: true,
+            })) return;
+            try {
+                await api.ssl.revoke(b.dataset.revoke);
+                toast.success('Сертифікат відкликано');
+                renderSSL();
+            } catch (e) { toast.error(e.message); }
+        });
     }
 }
