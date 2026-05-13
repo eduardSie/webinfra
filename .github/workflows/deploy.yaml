@@ -12,7 +12,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: eduardSie/service-catalog-api
+  IMAGE_NAME: eduardsie/service-catalog-api
 
 jobs:
 
